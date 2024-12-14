@@ -21,19 +21,17 @@ Enable this plugin.
 
 You can use `mg 1s2s3s`, or `mahgen 1112345678999m_0m`.
 It can display the hand in between.
-```mahgen
-1234567z19s19p19m||||_1z
-```
+
+![code snippets](assets/code.png)
 
 It can also display the river of tiles.
-```mahgen-river
-1234567z19s19p19m_1z
-```
+
+![code snippets 2](assets/code1.png)
+
 
 Displaying hand, draw, and discard.
-```mahgen-river
-123^456^7z^1^9s^1^9p1^9m_1z^1z
-```
+![code snippets 3](assets/code2.png)
+
 
 There is no river mode in inline, so it's unnecessary.
 
