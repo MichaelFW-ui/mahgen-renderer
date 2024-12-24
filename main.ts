@@ -1,226 +1,178 @@
-import { Plugin, Workspace, MarkdownView, MarkdownViewModeType, editorLivePreviewField } from 'obsidian';
+import { Plugin, MarkdownView } from 'obsidian';
 import { Mahgen } from 'Mahgen';
 import { ViewPlugin, Decoration, ViewUpdate, DecorationSet, EditorView, WidgetType, PluginSpec } from '@codemirror/view';
+import { RangeSetBuilder } from '@codemirror/state';
 
-import { RangeSetBuilder, EditorState } from '@codemirror/state';
+interface ImageRenderOptions {
+    height: string;
+    width?: string;
+    isRiver?: boolean;
+}
 
-class EmojiWidget extends WidgetType {
-    toDOM(view: EditorView): HTMLElement {
-        const div = document.createElement("span");
-        div.innerText = "👉";
-        return div;
+class MahgenWidget extends WidgetType {
+    constructor(private content: string, private options: ImageRenderOptions) {
+        super();
+    }
+
+    toDOM(): HTMLElement {
+        const img = document.createElement('img');
+        img.src = this.content;
+        img.style.height = this.options.height;
+        img.style.width = this.options.width || 'auto';
+        return img;
     }
 }
 
+class MahgenViewPlugin {
+    protected decorations: DecorationSet;  // 改为 protected
+    private cache: Map<string, string>; // Cache for rendered content
 
-        class MahgenPlugin {
-            decorations: DecorationSet;
-            cache: Map<string, string>; // 添加一个 Map 用于缓存结果
+    constructor(view: EditorView) {
+        this.cache = new Map();
+        this.decorations = this.buildDecorations(view);
+    }
 
-            constructor(view: EditorView) {
-                this.cache = new Map(); // 初始化 Map
-                // console.log('MahgenPlugin initialized', this.cache);
-                this.decorations = this.buildDecorations(view);
+    // 添加 getter 方法
+    getDecorations(): DecorationSet {
+        return this.decorations;
+    }
+
+    update(update: ViewUpdate) {
+        if (update.docChanged || update.viewportChanged || update.selectionSet) {
+            this.decorations = this.buildDecorations(update.view);
+        }
+    }
+
+    private buildDecorations(view: EditorView): DecorationSet {
+        const builder = new RangeSetBuilder<Decoration>();
+        
+        for (let { from, to } of view.visibleRanges) {
+            const text = view.state.doc.sliceString(from, to);
+            const regex = /`(mahgen|mg)\s+([^`]+)`/g;
+            let match;
+
+            while ((match = regex.exec(text)) !== null) {
+                const start = from + match.index;
+                const end = start + match[0].length;
+                const source = match[2];
+
+                // Skip decoration if cursor is within the code block
+                if (this.isCursorInRange(view, start, end)) continue;
+
+                // Skip multi-line decorations
+                if (this.isMultiLine(view, start, end)) continue;
+
+                this.addDecoration(builder, start, end, source);
             }
+        }
 
-            update(update: ViewUpdate) {
-                if (
-                    update.docChanged ||
-                    update.viewportChanged ||
-                    update.selectionSet
-                ) {
+        return builder.finish();
+    }
 
-                    // console.log(update)
-                    this.decorations = this.buildDecorations(update.view);
-                }
-            }
+    private isCursorInRange(view: EditorView, start: number, end: number): boolean {
+        return view.state.selection.ranges.some(range => 
+            range.from >= start && range.to <= end
+        );
+    }
 
-            buildDecorations(view: EditorView): DecorationSet {
-                const builder = new RangeSetBuilder<Decoration>();
+    private isMultiLine(view: EditorView, start: number, end: number): boolean {
+        return view.state.doc.lineAt(start).number !== view.state.doc.lineAt(end).number;
+    }
 
-                for (let { from, to } of view.visibleRanges) {
-                    const text = view.state.doc.sliceString(from, to);
-                    const regex = /`(mahgen|mg)\s+([^`]+)`/g;
-                    let match;
-                    while ((match = regex.exec(text)) !== null) {
-                        const start = from + match.index;
-                        const end = start + match[0].length;
-                        const source = match[2];
-                        const selection = view.state.selection;
+    private addDecoration(builder: RangeSetBuilder<Decoration>, start: number, end: number, source: string) {
+        const renderContent = this.cache.get(source) || '';
+        
+        if (this.cache.has(source)) {
+            this.createDecoration(builder, start, end, renderContent);
+        } else {
+            Mahgen.render(source, false)
+                .then(content => {
+                    this.cache.set(source, content);
+                    this.createDecoration(builder, start, end, content);
+                })
+                .catch(error => console.error('Mahgen rendering error:', error));
+        }
+    }
 
-                        // 检查当前光标是否在特定范围内
-                        const isCursorInRange = selection.ranges.some(range => {
-                            const cursorStart = range.from;
-                            const cursorEnd = range.to;
+    private createDecoration(builder: RangeSetBuilder<Decoration>, start: number, end: number, content: string) {
+        builder.add(start, end, Decoration.widget({
+            widget: new MahgenWidget(content, { height: '2.5em' }),
+            side: 1
+        }));
+    }
+}
 
-                            // 这里可以定义您要检查的特定范围
-                            const specificStart = start; // 例如，开始位置
-                            const specificEnd = end;   // 例如，结束位置
-
-                            return (cursorStart >= specificStart && cursorEnd <= specificEnd);
-                        });
-
-                        // 如果光标在特定范围内，则不渲染装饰
-                        if (isCursorInRange) {
-                            // console.log('Cursor is within the specific range, skipping decorations.');
-                            return builder.finish(); // 直接返回空的装饰
-                        }
-                        // 检查匹配的内容是否跨越多行
-                        const startLine = view.state.doc.lineAt(start);
-                        const endLine = view.state.doc.lineAt(end);
-
-                        if (startLine.number !== endLine.number) {
-                            // console.warn('Decoration cannot cross multiple lines');
-                            continue; // 如果跨越多行，跳过这个装饰
-                        }
-
-                        // 检查缓存中是否存在渲染结果
-                        if (this.cache.has(source)) {
-                            const renderedContent = this.cache.get(source);
-                            this.addDecoration(builder, start, end, renderedContent);
-                        } else {
-                            // 调用 Mahgen.render 渲染内容
-                            Mahgen.render(source, false).then((renderedContent: string) => {
-                                // 缓存渲染结果
-                                this.cache.set(source, renderedContent);
-                                this.addDecoration(builder, start, end, renderedContent);
-                            }).catch(error => {
-                                console.error('Error rendering Mahgen block:', error);
-                            });
-                        }
-                    }
-                }
-
-                return builder.finish();
-            }
-
-            // 添加装饰的辅助函数
-            addDecoration(builder: RangeSetBuilder<Decoration>, start: number, end: number, renderedContent: string) {
-                const img = new Image();
-                img.src = renderedContent;
-                img.style.height = '2.5em';
-                img.style.width = 'auto';
-
-                const decoration = Decoration.widget({
-                    widget: new class extends WidgetType {
-                        toDOM() {
-                            return img;
-                        }
-                    },
-                    side: 1 // 将 widget 插入在行内
-                });
-
-                builder.add(start, end, decoration);
-            }
-        };
 export default class MarkdownMahgenPlugin extends Plugin {
-    extension: ViewPlugin<MahgenPlugin>[] = [];
+    private extension: ViewPlugin<MahgenViewPlugin>[] = [];
+
     async onload() {
-        console.log('Loading Mahgen Plugin');
+        this.registerMarkdownProcessors();
+        this.setupEditorExtension();
+        this.registerLayoutChangeHandler();
+    }
 
+    private registerMarkdownProcessors() {
         this.registerMarkdownCodeBlockProcessor('mahgen', this.processMahgenBlock.bind(this));
-        this.registerMarkdownCodeBlockProcessor('mahgen-river', this.processMahgenRiverBlock.bind(this));
+        this.registerMarkdownCodeBlockProcessor('mahgen-river', 
+            (source, el, ctx) => this.processMahgenBlock(source, el, ctx, true)
+        );
+        this.registerMarkdownPostProcessor(this.handleInlineCode.bind(this));
+    }
 
-        // 注册 CodeMirror 6 扩展，用于在 live preview 中处理行内代码渲染
-        // this.registerEditorExtension(this.createMahgenInlineProcessor());
-        // this.app.workspace.updateOptions();
-        const viewPlugin = this.createMahgenInlineProcessor();
-
-        this.app.workspace.on('layout-change', () => {
-            const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView)?.getState();
-            this.extension.length = 0;
-            if (!(markdownView.source)) {
-              this.extension.push(viewPlugin);
-            }
-            this.app.workspace.updateOptions();
-          })
-          this.registerEditorExtension(this.extension)
-
-        console.log("注册Markdown后处理器");
-        this.registerMarkdownPostProcessor((element: HTMLElement, context: any) => {
-            // 查找所有行内代码块
-
-            const codeBlocks: NodeListOf<HTMLElement> = element.querySelectorAll('code');
-            for (let index = 0; index < codeBlocks.length; index++) {
-                // 遍历每个行内代码块
-                const codeBlock = codeBlocks.item(index);
-                const content: string = codeBlock.innerText;
-                // console.log(content);
-
-                // 检查行内代码块是否以 'mahgen' 或 'mg' 开头
-                let match = content.match(/^(mahgen|mg)( |$)/);
-                if (match) {
-                    const prefixLength = match[1].length;
-                    const source: string = content.slice(prefixLength).trim();
-                    processMahgenBlock(source, codeBlock, context);
-                }
-            }
+    private setupEditorExtension() {
+        const viewPlugin = ViewPlugin.fromClass(MahgenViewPlugin, {
+            decorations: value => value.getDecorations()  // 使用 getter 方法
         });
-        // 定义处理函数
-        async function processMahgenBlock(source: string, el: HTMLElement, ctx: any): Promise<void> {
-            try {
-                const renderedContent: string = await Mahgen.render(source, false);
-                const img: HTMLImageElement = document.createElement('img');
-                img.src = renderedContent;
+        this.extension.push(viewPlugin);
+        this.registerEditorExtension(this.extension);
+    }
 
-                // 设置图片高度与字体高度相同，宽度自动调整以保持比例
-                img.style.height = '2.5em';
-                img.style.width = 'auto';
-                el.innerHTML = '';
-                // el.appendChild(img);
-                el.replaceWith(img);
-            } catch (error) {
-                console.error('Error rendering Mahgen block:', error);
-                el.createEl('div', { text: 'Error rendering Mahgen block. Check console for details.' });
+    private registerLayoutChangeHandler() {
+        this.app.workspace.on('layout-change', () => {
+            const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+            this.extension = markdownView?.getState().source ? [] : this.extension;
+            this.app.workspace.updateOptions();
+        });
+    }
+
+    private async handleInlineCode(element: HTMLElement, context: any) {
+        const codeBlocks = element.querySelectorAll('code');
+        for (const codeBlock of Array.from(codeBlocks)) {
+            const match = codeBlock.innerText.match(/^(mahgen|mg)( |$)/);
+            if (match) {
+                const source = codeBlock.innerText.slice(match[1].length).trim();
+                await this.renderMahgenContent(source, codeBlock as HTMLElement, context);
             }
         }
     }
 
-    onunload() {
-        console.log('Unloading Mahgen Plugin');
-    }
-
-    // 创建 CodeMirror 扩展来处理行内代码
-    createMahgenInlineProcessor() {
-
-        const MahgenPluginSpec: PluginSpec<MahgenPlugin> = {
-            decorations: (value: MahgenPlugin) => value.decorations
-        };
-        return ViewPlugin.fromClass(MahgenPlugin, MahgenPluginSpec);
-    }
-
-    async processMahgenBlock(source: string, el: HTMLElement, ctx: any) {
+    private async renderMahgenContent(source: string, element: HTMLElement, context: any, isRiver = false) {
         try {
-            const renderedContent = await Mahgen.render(source, false);
-            const img = document.createElement('img');
-            img.src = renderedContent;
-            img.style.height = '2.5em';
-            img.style.width = 'auto';
-            el.appendChild(img);
+            const content = await Mahgen.render(source, isRiver);
+            const img = this.createImage(content, {
+                height: isRiver ? this.calculateRiverHeight(source) : '2.5em'
+            });
+            element.replaceWith(img);
         } catch (error) {
-            console.error('Error rendering Mahgen block:', error);
-            el.createEl('div', { text: 'Error rendering Mahgen block. Check console for details.' });
+            console.error('Mahgen rendering error:', error);
+            element.textContent = 'Error rendering Mahgen block';
         }
     }
 
-    async processMahgenRiverBlock(source: string, el: HTMLElement, ctx: any) {
-        try {
-            const renderedContent = await Mahgen.render(source, true);
-            const img = document.createElement('img');
-            img.src = renderedContent;
-            img.style.height = this.calculateHeightFromSource(source);
-            img.style.width = 'auto';
-            el.appendChild(img);
-        } catch (error) {
-            console.error('Error rendering Mahgen block:', error);
-            el.createEl('div', { text: 'Error rendering Mahgen block. Check console for details.' });
-        }
+    private createImage(src: string, options: ImageRenderOptions): HTMLImageElement {
+        const img = document.createElement('img');
+        img.src = src;
+        img.style.height = options.height;
+        img.style.width = options.width || 'auto';
+        return img;
     }
 
-    calculateHeightFromSource(source: string): string {
-        const numbers = source.match(/\d/g);
-        const totalCount = numbers ? numbers.length : 0;
-        const heightFactor = (totalCount / 6) * 3.2;
-        return `${heightFactor}em`;
+    private calculateRiverHeight(source: string): string {
+        const digitCount = (source.match(/\d/g) || []).length;
+        return `${(digitCount / 6) * 3.2}em`;
+    }
+
+    private async processMahgenBlock(source: string, el: HTMLElement, ctx: any, isRiver = false) {
+        await this.renderMahgenContent(source, el, ctx, isRiver);
     }
 }
