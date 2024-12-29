@@ -1,11 +1,11 @@
 {
-	"id": "mahgen-plugin",
-	"name": "mahgen Plugin",
-	"version": "1.0.1",
+	"id": "mahgen-renderer",
+	"name": "Mahgen Renderer",
+	"version": "1.0.2",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "This is a plugin used for displaying mahjong images inline or in block using Mahgen.",
+	"author": "Michael Francis Williams",
+	"authorUrl": "https://github.com/MichaelFW-ui",
+	"fundingUrl": "None",
 	"isDesktopOnly": false
 }
