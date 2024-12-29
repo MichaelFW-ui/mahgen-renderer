@@ -80,17 +80,17 @@ class MahgenViewPlugin {
     }
 
     private addDecoration(builder: RangeSetBuilder<Decoration>, start: number, end: number, source: string) {
-        const renderContent = this.cache.get(source) || '';
+        const renderContent: string = this.cache.get(source) || '';
         
         if (this.cache.has(source)) {
             this.createDecoration(builder, start, end, renderContent);
         } else {
             Mahgen.render(source, false)
-                .then(content => {
+                .then((content: string) => {
                     this.cache.set(source, content);
                     this.createDecoration(builder, start, end, content);
                 })
-                .catch(error => console.error('Mahgen rendering error:', error));
+                .catch((error: Error) => console.error('Mahgen rendering error:', error));
         }
     }
 
