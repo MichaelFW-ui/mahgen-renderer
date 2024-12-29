@@ -20,6 +20,8 @@ jobs:
         run: |
           npm install --verbose
           npm install mahgen
+          ls -la node_modules
+          ls -la node_modules/mahgen
           npm run build
 
       - name: Create release
