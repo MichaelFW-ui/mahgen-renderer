@@ -19,7 +19,8 @@ jobs:
 
       - name: Build plugin
         run: |
-          npm install
+          npm install --verbose
+          npm install mahgen
           npm run build
 
       - name: Create release
