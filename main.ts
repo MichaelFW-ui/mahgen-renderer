@@ -1,5 +1,5 @@
 import { Plugin, MarkdownView } from 'obsidian';
-import { Mahgen } from 'Mahgen';
+import { Mahgen } from 'mahgen';
 import { ViewPlugin, Decoration, ViewUpdate, DecorationSet, EditorView, WidgetType, PluginSpec } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
 
