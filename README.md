@@ -4,6 +4,14 @@ This is a plugin for [mahgen](https://github.com/eric03742/mahgen) to render in 
 
 If you have opinions or suggestions, please open issues to let me know, or open pull requests fix it directly!
 
+# Install
+
+(If this plugin was accepted)
+1. Open Obsidian.
+2. Go to `Settings` > `Community Plugins` > `Browse`.
+3. Search for **mahgen**.
+4. Click `Install` and enable the plugin.
+
 # Build
 
 To build the plugin, use the following commands:
