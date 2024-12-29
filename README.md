@@ -2,7 +2,7 @@
 
 This is a plugin for [mahgen](https://github.com/eric03742/mahgen) to render in [Obsidian](https://obsidian.md/)
 
-The code is mostly implemented by LLMs, I don't know much about JavaScript. Any pull requests are appreciated.
+If you have opinions or suggestions, please open issues to let me know, or open pull requests fix it directly!
 
 # Build
 
