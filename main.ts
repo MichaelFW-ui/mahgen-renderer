@@ -17,8 +17,12 @@ class MahgenWidget extends WidgetType {
     toDOM(): HTMLElement {
         const img = document.createElement('img');
         img.src = this.content;
-        img.style.height = this.options.height;
-        img.style.width = this.options.width || 'auto';
+        if (this.options.isRiver) {
+            img.classList.add('mahgen-river-image');
+            img.style.setProperty('--mahgen-height', this.options.height);
+        } else {
+            img.classList.add('mahgen-image');
+        }
         return img;
     }
 }
@@ -96,7 +100,10 @@ class MahgenViewPlugin {
 
     private createDecoration(builder: RangeSetBuilder<Decoration>, start: number, end: number, content: string) {
         builder.add(start, end, Decoration.widget({
-            widget: new MahgenWidget(content, { height: '2.5em' }),
+            widget: new MahgenWidget(content, { 
+                height: '2.5em',
+                isRiver: false 
+            }),
             side: 1
         }));
     }
@@ -150,7 +157,8 @@ export default class MarkdownMahgenPlugin extends Plugin {
         try {
             const content = await Mahgen.render(source, isRiver);
             const img = this.createImage(content, {
-                height: isRiver ? this.calculateRiverHeight(source) : '2.5em'
+                height: isRiver ? this.calculateRiverHeight(source) : '2.5em',
+                isRiver: isRiver
             });
             element.replaceWith(img);
         } catch (error) {
@@ -162,14 +170,20 @@ export default class MarkdownMahgenPlugin extends Plugin {
     private createImage(src: string, options: ImageRenderOptions): HTMLImageElement {
         const img = document.createElement('img');
         img.src = src;
-        img.style.height = options.height;
-        img.style.width = options.width || 'auto';
+        if (options.isRiver) {
+            img.classList.add('mahgen-river-image');
+            img.style.setProperty('--mahgen-height', options.height);
+        } else {
+            img.classList.add('mahgen-image');
+        }
         return img;
     }
 
     private calculateRiverHeight(source: string): string {
+        // 计算行数（每6个数字为一行）并乘以基准高度
         const digitCount = (source.match(/\d/g) || []).length;
-        return `${(digitCount / 6) * 3.2}em`;
+        const rows = Math.ceil(digitCount / 6);
+        return `${rows * 2.5}em`;  // 每行2.5em
     }
 
     private async processMahgenBlock(source: string, el: HTMLElement, ctx: any, isRiver = false) {

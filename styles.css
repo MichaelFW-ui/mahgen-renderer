@@ -6,3 +6,13 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.mahgen-image {
+    height: 2.5em;
+    width: auto;
+}
+
+.mahgen-river-image {
+    height: var(--mahgen-height);
+    width: auto;
+}
