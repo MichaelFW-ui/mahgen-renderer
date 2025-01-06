@@ -48,4 +48,5 @@ More details, please refer to [mahgen](https://github.com/eric03742/mahgen).
 # Known issues
 
 <!-- 1. For some themes (like Blue Topaz) the inline tiles may render like in between. -->
-1. Rendering takes some time, so sometimes you can see original inline code like `mg 1s`. Click anywhere it will rerender.
+1. In the `styles.css` file, I used `!important` to ensure that the elements remain in the `inline-block` state because I believe that under no circumstances should these Mahjong tiles be rendered in a centered position.
+2. Rendering takes some time, so sometimes you can see original inline code like `mg 1s`. Click anywhere it will rerender.
