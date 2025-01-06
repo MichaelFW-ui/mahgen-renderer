@@ -101,7 +101,7 @@ class MahgenViewPlugin {
     private createDecoration(builder: RangeSetBuilder<Decoration>, start: number, end: number, content: string) {
         builder.add(start, end, Decoration.widget({
             widget: new MahgenWidget(content, { 
-                height: '2.5em',
+                height: getComputedStyle(document.documentElement).getPropertyValue('--mahgen-base-height').trim(),
                 isRiver: false 
             }),
             side: 1
@@ -180,10 +180,10 @@ export default class MarkdownMahgenPlugin extends Plugin {
     }
 
     private calculateRiverHeight(source: string): string {
-        // 计算行数（每6个数字为一行）并乘以基准高度
         const digitCount = (source.match(/\d/g) || []).length;
         const rows = Math.ceil(digitCount / 6);
-        return `${rows * 2.5}em`;  // 每行2.5em
+        const rowHeight = getComputedStyle(document.documentElement).getPropertyValue('--mahgen-row-height').trim();
+        return `calc(${rows} * ${rowHeight})`;
     }
 
     private async processMahgenBlock(source: string, el: HTMLElement, ctx: any, isRiver = false) {

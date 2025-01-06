@@ -7,12 +7,19 @@ If your plugin does not need CSS, delete this file.
 
 */
 
+:root {
+    --mahgen-base-height: 2.3em;
+    --mahgen-row-height: 2.3em;
+}
+
 .mahgen-image {
-    height: 2.5em;
+    height: var(--mahgen-base-height);
     width: auto;
+    display: inline-block !important;
 }
 
 .mahgen-river-image {
     height: var(--mahgen-height);
     width: auto;
+    display: inline-block !important;
 }

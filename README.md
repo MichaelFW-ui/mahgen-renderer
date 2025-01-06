@@ -47,5 +47,5 @@ More details, please refer to [mahgen](https://github.com/eric03742/mahgen).
 
 # Known issues
 
-1. For some themes (like Blue Topaz) the inline tiles may render like in between.
-2. Rendering takes some time, so sometimes you can see original inline code like `mg 1s`. Click anywhere it will rerender.
+<!-- 1. For some themes (like Blue Topaz) the inline tiles may render like in between. -->
+1. Rendering takes some time, so sometimes you can see original inline code like `mg 1s`. Click anywhere it will rerender.
