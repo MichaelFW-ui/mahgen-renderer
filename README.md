@@ -1,4 +1,4 @@
-# Obsidian-mahgen-plugin
+# Mahgen Renderer
 
 This is a plugin for [mahgen](https://github.com/eric03742/mahgen) to render in [Obsidian](https://obsidian.md/)
 

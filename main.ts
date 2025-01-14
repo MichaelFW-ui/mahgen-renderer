@@ -1,7 +1,7 @@
-import { Plugin, MarkdownView } from 'obsidian';
+import { Plugin, MarkdownView, editorLivePreviewField } from 'obsidian';
 import { Mahgen } from 'mahgen';
 import { ViewPlugin, Decoration, ViewUpdate, DecorationSet, EditorView, WidgetType, PluginSpec } from '@codemirror/view';
-import { RangeSetBuilder } from '@codemirror/state';
+import { RangeSetBuilder, StateField } from '@codemirror/state';
 
 interface ImageRenderOptions {
     height: string;
@@ -28,7 +28,7 @@ class MahgenWidget extends WidgetType {
 }
 
 class MahgenViewPlugin {
-    protected decorations: DecorationSet;  // 改为 protected
+    protected decorations: DecorationSet;  // Changed to protected
     private cache: Map<string, string>; // Cache for rendered content
 
     constructor(view: EditorView) {
@@ -36,12 +36,22 @@ class MahgenViewPlugin {
         this.decorations = this.buildDecorations(view);
     }
 
-    // 添加 getter 方法
+    // Add getter method
     getDecorations(): DecorationSet {
         return this.decorations;
     }
 
     update(update: ViewUpdate) {
+        // Check if in live preview mode
+        const livePreviewState = update.state.field(editorLivePreviewField, false);
+        
+        // If not in live preview mode, clear all decorations
+        if (!livePreviewState) {
+            this.decorations = Decoration.none;
+            return;
+        }
+
+        // Only update decorations in live preview mode
         if (update.docChanged || update.viewportChanged || update.selectionSet) {
             this.decorations = this.buildDecorations(update.view);
         }
@@ -115,7 +125,6 @@ export default class MarkdownMahgenPlugin extends Plugin {
     async onload() {
         this.registerMarkdownProcessors();
         this.setupEditorExtension();
-        this.registerLayoutChangeHandler();
     }
 
     private registerMarkdownProcessors() {
@@ -128,18 +137,10 @@ export default class MarkdownMahgenPlugin extends Plugin {
 
     private setupEditorExtension() {
         const viewPlugin = ViewPlugin.fromClass(MahgenViewPlugin, {
-            decorations: value => value.getDecorations()  // 使用 getter 方法
+            decorations: value => value.getDecorations()  // Use getter method
         });
         this.extension.push(viewPlugin);
         this.registerEditorExtension(this.extension);
-    }
-
-    private registerLayoutChangeHandler() {
-        this.app.workspace.on('layout-change', () => {
-            const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-            this.extension = markdownView?.getState().source ? [] : this.extension;
-            this.app.workspace.updateOptions();
-        });
     }
 
     private async handleInlineCode(element: HTMLElement, context: any) {
