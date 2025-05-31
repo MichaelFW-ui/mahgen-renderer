@@ -129,9 +129,10 @@ export default class MarkdownMahgenPlugin extends Plugin {
 
     private registerMarkdownProcessors() {
         this.registerMarkdownCodeBlockProcessor('mahgen', this.processMahgenBlock.bind(this));
-        this.registerMarkdownCodeBlockProcessor('mahgen-river', 
+        this.registerMarkdownCodeBlockProcessor('mahgen-river',
             (source, el, ctx) => this.processMahgenBlock(source, el, ctx, true)
         );
+        this.registerMarkdownCodeBlockProcessor('nankiru', this.processNankiruBlock.bind(this));
         this.registerMarkdownPostProcessor(this.handleInlineCode.bind(this));
     }
 
@@ -189,5 +190,108 @@ export default class MarkdownMahgenPlugin extends Plugin {
 
     private async processMahgenBlock(source: string, el: HTMLElement, ctx: any, isRiver = false) {
         await this.renderMahgenContent(source, el, ctx, isRiver);
+    }
+
+    private async processNankiruBlock(source: string, el: HTMLElement, ctx: any) {
+        const lines = source.trim().split('\n');
+        if (lines.length < 3) return;
+
+        const container = document.createElement('div');
+        container.classList.add('nankiru-container');
+
+        // 第一行: 题号 (Q/A + 三位数字)
+        const headerLine = lines[0].trim();
+        const headerMatch = headerLine.match(/^([QA])(\d{3})$/);
+        if (headerMatch) {
+            const headerDiv = document.createElement('div');
+            headerDiv.classList.add('nankiru-header');
+            
+            const prefixSpan = document.createElement('span');
+            prefixSpan.classList.add('nankiru-prefix');
+            if (headerMatch[1] === 'A') {
+                prefixSpan.classList.add('nankiru-prefix-answer');
+            }
+            prefixSpan.textContent = headerMatch[1];
+            headerDiv.appendChild(prefixSpan);
+            
+            const numberSpan = document.createElement('span');
+            numberSpan.classList.add('nankiru-number');
+            if (headerMatch[1] === 'A') {
+                numberSpan.classList.add('nankiru-number-answer');
+            }
+            numberSpan.textContent = headerMatch[2];
+            headerDiv.appendChild(numberSpan);
+            
+            container.appendChild(headerDiv);
+        }
+
+        // 第二行: 环境信息 + 宝牌
+        const infoLine = lines[1].trim();
+        const infoDiv = document.createElement('div');
+        infoDiv.classList.add('nankiru-info');
+        
+        // 分离环境信息和宝牌
+        const parts = infoLine.split(' ');
+        const envParts = parts.slice(0, -1); // 环境信息部分
+        const doraPart = parts[parts.length - 1]; // 宝牌信息
+        
+        // 环境信息部分
+        const envSpan = document.createElement('span');
+        envSpan.classList.add('nankiru-env');
+        envSpan.textContent = `「${envParts.join(' ')}」`;
+        infoDiv.appendChild(envSpan);
+        
+        // 宝牌渲染
+        if (doraPart) {
+            try {
+                const doraContent = await Mahgen.render(doraPart, false);
+                const doraImg = document.createElement('img');
+                doraImg.src = doraContent;
+                doraImg.classList.add('mahgen-image', 'nankiru-dora');
+                infoDiv.appendChild(doraImg);
+            } catch (error) {
+                console.error('宝牌渲染错误:', error);
+            }
+        }
+        
+        container.appendChild(infoDiv);
+
+        // 第三行: 手牌
+        const handLine = lines[2].trim();
+        try {
+            const handContent = await Mahgen.render(handLine, false);
+            const handImg = document.createElement('img');
+            handImg.src = handContent;
+            handImg.classList.add('mahgen-image', 'nankiru-hand');
+            container.appendChild(handImg);
+        } catch (error) {
+            console.error('手牌渲染错误:', error);
+        }
+
+        // 第四行: 答案 (仅当题号以A开头时显示)
+        if (headerMatch && headerMatch[1] === 'A' && lines.length > 3) {
+            const answerLine = lines[3].trim();
+            try {
+                const answerDiv = document.createElement('div');
+                answerDiv.classList.add('nankiru-answer');
+                
+                const arrowSpan = document.createElement('span');
+                arrowSpan.classList.add('nankiru-arrow');
+                arrowSpan.textContent = '➤';
+                answerDiv.appendChild(arrowSpan);
+                
+                const answerContent = await Mahgen.render(answerLine, false);
+                const answerImg = document.createElement('img');
+                answerImg.src = answerContent;
+                answerImg.classList.add('mahgen-image', 'nankiru-answer-hand');
+                answerDiv.appendChild(answerImg);
+                
+                container.appendChild(answerDiv);
+            } catch (error) {
+                console.error('答案渲染错误:', error);
+            }
+        }
+
+        el.replaceWith(container);
     }
 }
