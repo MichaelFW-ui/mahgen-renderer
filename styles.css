@@ -24,7 +24,7 @@ If your plugin does not need CSS, delete this file.
     display: inline-block !important;
 }
 
-/* Nankiru 样式 */
+/* Nankiru styles */
 .nankiru-container {
     display: flex;
     flex-direction: column;

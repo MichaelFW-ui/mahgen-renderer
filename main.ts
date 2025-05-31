@@ -235,13 +235,13 @@ export default class MarkdownMahgenPlugin extends Plugin {
         const envParts = parts.slice(0, -1); // 环境信息部分
         const doraPart = parts[parts.length - 1]; // 宝牌信息
         
-        // 环境信息部分
+        // Environment information section
         const envSpan = document.createElement('span');
         envSpan.classList.add('nankiru-env');
         envSpan.textContent = `「${envParts.join(' ')}」`;
         infoDiv.appendChild(envSpan);
         
-        // 宝牌渲染
+        // Dora tile rendering
         if (doraPart) {
             try {
                 const doraContent = await Mahgen.render(doraPart, false);
@@ -250,13 +250,13 @@ export default class MarkdownMahgenPlugin extends Plugin {
                 doraImg.classList.add('mahgen-image', 'nankiru-dora');
                 infoDiv.appendChild(doraImg);
             } catch (error) {
-                console.error('宝牌渲染错误:', error);
+                console.error('Dora tile rendering error:', error);
             }
         }
         
         container.appendChild(infoDiv);
 
-        // 第三行: 手牌
+        // Third line: Hand tiles
         const handLine = lines[2].trim();
         try {
             const handContent = await Mahgen.render(handLine, false);
@@ -268,7 +268,7 @@ export default class MarkdownMahgenPlugin extends Plugin {
             console.error('手牌渲染错误:', error);
         }
 
-        // 第四行: 答案 (仅当题号以A开头时显示)
+        // Fourth line: Answer (only displayed when the header starts with 'A')
         if (headerMatch && headerMatch[1] === 'A' && lines.length > 3) {
             const answerLine = lines[3].trim();
             try {
