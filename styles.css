@@ -9,7 +9,7 @@ If your plugin does not need CSS, delete this file.
 
 :root {
     --mahgen-base-height: 2.2em;    /* 基础高度 (代码块使用) */
-    --mahgen-inline-height: 1.5em;  /* 行内手牌高度 */
+    --mahgen-inline-height: 1.8em;  /* 行内手牌高度 */
     --mahgen-row-height: 2.2em;     /* 河流行高度 */
 }
 

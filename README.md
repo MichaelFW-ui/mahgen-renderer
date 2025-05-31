@@ -68,6 +68,18 @@ A001
 2s
 ```
 
+## Hand Size
+
+In `style.css`, you can freely change the size of hands:
+
+```css
+:root {
+    --mahgen-base-height: 2.2em;    /* base height(for block) */
+    --mahgen-inline-height: 1.8em;  /* inline hand, smaller for read */
+    --mahgen-row-height: 2.2em;     /* river hand, usually same with base */
+}
+```
+
 # Known issues
 
 <!-- 1. For some themes (like Blue Topaz) the inline tiles may render like in between. -->
