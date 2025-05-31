@@ -8,16 +8,26 @@ If your plugin does not need CSS, delete this file.
 */
 
 :root {
-    --mahgen-base-height: 2.3em;
-    --mahgen-row-height: 2.3em;
+    --mahgen-base-height: 2.2em;    /* 基础高度 (代码块使用) */
+    --mahgen-inline-height: 1.5em;  /* 行内手牌高度 */
+    --mahgen-row-height: 2.2em;     /* 河流行高度 */
 }
 
+/* 行内手牌样式 (装饰器实现) */
 .mahgen-image {
+    height: var(--mahgen-inline-height);
+    width: auto;
+    display: inline-block !important;
+}
+
+/* 块级手牌样式 (后处理器实现) */
+.mahgen-block-image {
     height: var(--mahgen-base-height);
     width: auto;
     display: inline-block !important;
 }
 
+/* 河牌样式 */
 .mahgen-river-image {
     height: var(--mahgen-height);
     width: auto;
@@ -109,5 +119,5 @@ If your plugin does not need CSS, delete this file.
 
 .nankiru-answer-hand {
     max-width: 100%;
-    height: 3em;
+    height: 2.6em;
 }

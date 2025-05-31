@@ -110,9 +110,9 @@ class MahgenViewPlugin {
 
     private createDecoration(builder: RangeSetBuilder<Decoration>, start: number, end: number, content: string) {
         builder.add(start, end, Decoration.widget({
-            widget: new MahgenWidget(content, { 
-                height: getComputedStyle(document.documentElement).getPropertyValue('--mahgen-base-height').trim(),
-                isRiver: false 
+            widget: new MahgenWidget(content, {
+                height: getComputedStyle(document.documentElement).getPropertyValue('--mahgen-inline-height').trim() || '2.5em',
+                isRiver: false
             }),
             side: 1
         }));
@@ -159,7 +159,8 @@ export default class MarkdownMahgenPlugin extends Plugin {
         try {
             const content = await Mahgen.render(source, isRiver);
             const img = this.createImage(content, {
-                height: isRiver ? this.calculateRiverHeight(source) : '2.5em',
+                height: isRiver ? this.calculateRiverHeight(source) :
+                         getComputedStyle(document.documentElement).getPropertyValue('--mahgen-inline-height').trim() || '2.5em',
                 isRiver: isRiver
             });
             element.replaceWith(img);
@@ -176,7 +177,8 @@ export default class MarkdownMahgenPlugin extends Plugin {
             img.classList.add('mahgen-river-image');
             img.style.setProperty('--mahgen-height', options.height);
         } else {
-            img.classList.add('mahgen-image');
+            // 后处理器渲染的块级手牌使用 mahgen-block-image
+            img.classList.add('mahgen-block-image');
         }
         return img;
     }
@@ -247,7 +249,7 @@ export default class MarkdownMahgenPlugin extends Plugin {
                 const doraContent = await Mahgen.render(doraPart, false);
                 const doraImg = document.createElement('img');
                 doraImg.src = doraContent;
-                doraImg.classList.add('mahgen-image', 'nankiru-dora');
+                doraImg.classList.add('mahgen-block-image', 'nankiru-dora');
                 infoDiv.appendChild(doraImg);
             } catch (error) {
                 console.error('Dora tile rendering error:', error);
@@ -262,7 +264,7 @@ export default class MarkdownMahgenPlugin extends Plugin {
             const handContent = await Mahgen.render(handLine, false);
             const handImg = document.createElement('img');
             handImg.src = handContent;
-            handImg.classList.add('mahgen-image', 'nankiru-hand');
+            handImg.classList.add('mahgen-block-image', 'nankiru-hand');
             container.appendChild(handImg);
         } catch (error) {
             console.error('手牌渲染错误:', error);
@@ -283,7 +285,7 @@ export default class MarkdownMahgenPlugin extends Plugin {
                 const answerContent = await Mahgen.render(answerLine, false);
                 const answerImg = document.createElement('img');
                 answerImg.src = answerContent;
-                answerImg.classList.add('mahgen-image', 'nankiru-answer-hand');
+                answerImg.classList.add('mahgen-block-image', 'nankiru-answer-hand');
                 answerDiv.appendChild(answerImg);
                 
                 container.appendChild(answerDiv);
