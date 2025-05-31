@@ -45,6 +45,29 @@ There is no river mode in inline, so it's unnecessary.
 
 More details, please refer to [mahgen](https://github.com/eric03742/mahgen).
 
+## Nankiru Mode
+
+New feature:
+
+![nankiru](assets/nankiru.png)
+
+The code is as follows:
+
+
+```nankiru
+Q001
+东一局 西家 7巡目 0020000z
+6778p1122345s77z||0p
+```
+
+
+```nankiru
+A001
+东一局 西家 7巡目 0020000z
+6778p1122345s77z||0p
+2s
+```
+
 # Known issues
 
 <!-- 1. For some themes (like Blue Topaz) the inline tiles may render like in between. -->
