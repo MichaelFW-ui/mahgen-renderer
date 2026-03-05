@@ -28,33 +28,74 @@ class MahgenWidget extends WidgetType {
 }
 
 class MahgenViewPlugin {
-    protected decorations: DecorationSet;  // Changed to protected
-    private cache: Map<string, string>; // Cache for rendered content
+    private static readonly REBUILD_THROTTLE_MS = 80;
+    private static readonly MAX_CACHE_SIZE = 500;
+
+    protected decorations: DecorationSet;
+    private cache: Map<string, string>;
+    private pendingRenders: Map<string, Promise<void>>;
+    private view: EditorView;
+    private rebuildTimer: number | null;
+    private rebuildQueued: boolean;
+    private isDestroyed: boolean;
 
     constructor(view: EditorView) {
+        this.view = view;
         this.cache = new Map();
+        this.pendingRenders = new Map();
+        this.rebuildTimer = null;
+        this.rebuildQueued = false;
+        this.isDestroyed = false;
         this.decorations = this.buildDecorations(view);
     }
 
-    // Add getter method
     getDecorations(): DecorationSet {
         return this.decorations;
     }
 
     update(update: ViewUpdate) {
-        // Check if in live preview mode
+        this.view = update.view;
         const livePreviewState = update.state.field(editorLivePreviewField, false);
-        
-        // If not in live preview mode, clear all decorations
+
         if (!livePreviewState) {
+            this.cancelRebuild();
             this.decorations = Decoration.none;
             return;
         }
 
-        // Only update decorations in live preview mode
         if (update.docChanged || update.viewportChanged || update.selectionSet) {
-            this.decorations = this.buildDecorations(update.view);
+            this.scheduleRebuild();
         }
+    }
+
+    destroy() {
+        this.isDestroyed = true;
+        this.pendingRenders.clear();
+        this.cancelRebuild();
+    }
+
+    private scheduleRebuild() {
+        if (this.rebuildQueued || this.isDestroyed) return;
+        this.rebuildQueued = true;
+        this.rebuildTimer = window.setTimeout(() => {
+            this.rebuildQueued = false;
+            this.rebuildTimer = null;
+            this.rebuildDecorations();
+        }, MahgenViewPlugin.REBUILD_THROTTLE_MS);
+    }
+
+    private cancelRebuild() {
+        if (this.rebuildTimer !== null) {
+            window.clearTimeout(this.rebuildTimer);
+            this.rebuildTimer = null;
+        }
+        this.rebuildQueued = false;
+    }
+
+    private rebuildDecorations() {
+        if (this.isDestroyed) return;
+        this.decorations = this.buildDecorations(this.view);
+        this.view.dispatch({});
     }
 
     private buildDecorations(view: EditorView): DecorationSet {
@@ -94,17 +135,37 @@ class MahgenViewPlugin {
     }
 
     private addDecoration(builder: RangeSetBuilder<Decoration>, start: number, end: number, source: string) {
-        const renderContent: string = this.cache.get(source) || '';
-        
-        if (this.cache.has(source)) {
+        const renderContent = this.cache.get(source);
+
+        if (renderContent) {
             this.createDecoration(builder, start, end, renderContent);
         } else {
-            Mahgen.render(source, false)
-                .then((content: string) => {
-                    this.cache.set(source, content);
-                    this.createDecoration(builder, start, end, content);
-                })
-                .catch((error: Error) => console.error('Mahgen rendering error:', error));
+            this.queueRender(source);
+        }
+    }
+
+    private queueRender(source: string) {
+        if (this.pendingRenders.has(source)) return;
+
+        const renderTask = Mahgen.render(source, false)
+            .then((content: string) => {
+                this.cache.set(source, content);
+                this.trimCache();
+                this.scheduleRebuild();
+            })
+            .catch((error: Error) => console.error('Mahgen rendering error:', error))
+            .finally(() => {
+                this.pendingRenders.delete(source);
+            });
+
+        this.pendingRenders.set(source, renderTask);
+    }
+
+    private trimCache() {
+        while (this.cache.size > MahgenViewPlugin.MAX_CACHE_SIZE) {
+            const firstKey = this.cache.keys().next().value;
+            if (firstKey === undefined) break;
+            this.cache.delete(firstKey);
         }
     }
 
