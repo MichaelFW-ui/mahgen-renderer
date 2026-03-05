@@ -1,7 +1,25 @@
-import { Plugin, MarkdownView, editorLivePreviewField } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, MarkdownView, editorLivePreviewField } from 'obsidian';
 import { Mahgen } from 'mahgen';
-import { ViewPlugin, Decoration, ViewUpdate, DecorationSet, EditorView, WidgetType, PluginSpec } from '@codemirror/view';
-import { RangeSetBuilder, StateField } from '@codemirror/state';
+import { ViewPlugin, Decoration, ViewUpdate, DecorationSet, EditorView, WidgetType } from '@codemirror/view';
+import { RangeSetBuilder, Extension } from '@codemirror/state';
+
+const FURIGANA_EXCLUDE_SELECTOR = 'code, pre, ruby';
+const FURIGANA_REGEX = /\{([\u3400-\u9FFF\uF900-\uFAFF々〆ヵヶ]+)((?:\|[^|{}\s]+)+)\}/g;
+
+interface FuriganaToken {
+    start: number;
+    end: number;
+    baseUnits: string[];
+    readings: string[];
+}
+
+interface MarkdownMahgenSettings {
+    enableFurigana: boolean;
+}
+
+const DEFAULT_SETTINGS: MarkdownMahgenSettings = {
+    enableFurigana: false
+};
 
 interface ImageRenderOptions {
     height: string;
@@ -25,6 +43,44 @@ class MahgenWidget extends WidgetType {
         }
         return img;
     }
+}
+
+function parseFuriganaTokens(text: string): FuriganaToken[] {
+    const tokens: FuriganaToken[] = [];
+    const regex = new RegExp(FURIGANA_REGEX.source, 'g');
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(text)) !== null) {
+        const baseText = match[1];
+        const readings = match[2].split('|').filter(Boolean);
+        const baseUnits = readings.length === 1 ? [baseText] : Array.from(baseText);
+
+        if (baseUnits.length !== readings.length) continue;
+        if (match.index === undefined) continue;
+
+        tokens.push({
+            start: match.index,
+            end: match.index + match[0].length,
+            baseUnits,
+            readings
+        });
+    }
+
+    return tokens;
+}
+
+function createFuriganaRuby(baseUnits: string[], readings: string[]): HTMLElement {
+    const ruby = document.createElement('ruby');
+    ruby.classList.add('mahgen-furigana-ruby');
+
+    for (let i = 0; i < baseUnits.length; i++) {
+        ruby.append(baseUnits[i]);
+        const rt = document.createElement('rt');
+        rt.textContent = readings[i];
+        ruby.append(rt);
+    }
+
+    return ruby;
 }
 
 class MahgenViewPlugin {
@@ -180,12 +236,166 @@ class MahgenViewPlugin {
     }
 }
 
+class FuriganaWidget extends WidgetType {
+    constructor(
+        private baseUnits: string[],
+        private readings: string[]
+    ) {
+        super();
+    }
+
+    eq(other: FuriganaWidget): boolean {
+        return this.baseUnits.join('\u0000') === other.baseUnits.join('\u0000') &&
+            this.readings.join('\u0000') === other.readings.join('\u0000');
+    }
+
+    toDOM(): HTMLElement {
+        return createFuriganaRuby(this.baseUnits, this.readings);
+    }
+}
+
+class FuriganaViewPlugin {
+    private static readonly REBUILD_THROTTLE_MS = 80;
+
+    decorations: DecorationSet;
+    private view: EditorView;
+    private rebuildTimer: number | null;
+    private rebuildQueued: boolean;
+    private isDestroyed: boolean;
+
+    constructor(view: EditorView) {
+        this.view = view;
+        this.rebuildTimer = null;
+        this.rebuildQueued = false;
+        this.isDestroyed = false;
+        this.decorations = this.isLivePreview(view) ? this.buildDecorations(view) : Decoration.none;
+    }
+
+    update(update: ViewUpdate) {
+        this.view = update.view;
+        if (!this.isLivePreview(update.view)) {
+            this.cancelRebuild();
+            this.decorations = Decoration.none;
+            return;
+        }
+
+        if (update.docChanged || update.viewportChanged || update.selectionSet) {
+            this.scheduleRebuild();
+        }
+    }
+
+    destroy() {
+        this.isDestroyed = true;
+        this.cancelRebuild();
+    }
+
+    private scheduleRebuild() {
+        if (this.rebuildQueued || this.isDestroyed) return;
+        this.rebuildQueued = true;
+        this.rebuildTimer = window.setTimeout(() => {
+            this.rebuildQueued = false;
+            this.rebuildTimer = null;
+            this.rebuildDecorations();
+        }, FuriganaViewPlugin.REBUILD_THROTTLE_MS);
+    }
+
+    private cancelRebuild() {
+        if (this.rebuildTimer !== null) {
+            window.clearTimeout(this.rebuildTimer);
+            this.rebuildTimer = null;
+        }
+        this.rebuildQueued = false;
+    }
+
+    private rebuildDecorations() {
+        if (this.isDestroyed) return;
+        if (!this.isLivePreview(this.view)) {
+            this.decorations = Decoration.none;
+            this.view.dispatch({});
+            return;
+        }
+        this.decorations = this.buildDecorations(this.view);
+        this.view.dispatch({});
+    }
+
+    private isLivePreview(view: EditorView): boolean {
+        return !!view.state.field(editorLivePreviewField, false);
+    }
+
+    private buildDecorations(view: EditorView): DecorationSet {
+        const builder = new RangeSetBuilder<Decoration>();
+
+        for (const { from, to } of view.visibleRanges) {
+            const text = view.state.doc.sliceString(from, to);
+            const tokens = parseFuriganaTokens(text);
+            for (const token of tokens) {
+                const start = from + token.start;
+                const end = from + token.end;
+
+                if (this.isSelectionOverlapping(view, start, end)) continue;
+                if (this.isMultiLine(view, start, end)) continue;
+
+                builder.add(start, end, Decoration.replace({
+                    widget: new FuriganaWidget(token.baseUnits, token.readings)
+                }));
+            }
+        }
+
+        return builder.finish();
+    }
+
+    private isSelectionOverlapping(view: EditorView, start: number, end: number): boolean {
+        return view.state.selection.ranges.some((range) => {
+            if (range.from === range.to) {
+                return range.from >= start && range.from <= end;
+            }
+            return range.from < end && range.to > start;
+        });
+    }
+
+    private isMultiLine(view: EditorView, start: number, end: number): boolean {
+        return view.state.doc.lineAt(start).number !== view.state.doc.lineAt(end).number;
+    }
+}
+
 export default class MarkdownMahgenPlugin extends Plugin {
-    private extension: ViewPlugin<MahgenViewPlugin>[] = [];
+    private extension: Extension[] = [];
+    private settings: MarkdownMahgenSettings = DEFAULT_SETTINGS;
+
+    private readonly mahgenViewPlugin = ViewPlugin.fromClass(MahgenViewPlugin, {
+        decorations: value => value.getDecorations()
+    });
+
+    private readonly furiganaViewPlugin = ViewPlugin.fromClass(FuriganaViewPlugin, {
+        decorations: value => value.decorations
+    });
 
     async onload() {
+        await this.loadSettings();
+        this.addSettingTab(new MarkdownMahgenSettingTab(this.app, this));
+
         this.registerMarkdownProcessors();
         this.setupEditorExtension();
+    }
+
+    private async loadSettings() {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    }
+
+    private async saveSettings() {
+        await this.saveData(this.settings);
+    }
+
+    async updateFuriganaEnabled(enabled: boolean) {
+        if (this.settings.enableFurigana === enabled) return;
+        this.settings.enableFurigana = enabled;
+        await this.saveSettings();
+        this.refreshEditorExtensions();
+        this.refreshOpenMarkdownPreviews();
+    }
+
+    isFuriganaEnabled(): boolean {
+        return this.settings.enableFurigana;
     }
 
     private registerMarkdownProcessors() {
@@ -195,14 +405,34 @@ export default class MarkdownMahgenPlugin extends Plugin {
         );
         this.registerMarkdownCodeBlockProcessor('nankiru', this.processNankiruBlock.bind(this));
         this.registerMarkdownPostProcessor(this.handleInlineCode.bind(this));
+        this.registerMarkdownPostProcessor(this.handleFuriganaPostProcessor.bind(this));
     }
 
     private setupEditorExtension() {
-        const viewPlugin = ViewPlugin.fromClass(MahgenViewPlugin, {
-            decorations: value => value.getDecorations()  // Use getter method
-        });
-        this.extension.push(viewPlugin);
+        this.refreshEditorExtensions(false);
         this.registerEditorExtension(this.extension);
+    }
+
+    private refreshEditorExtensions(applyWorkspaceUpdate = true) {
+        this.extension.length = 0;
+        this.extension.push(this.mahgenViewPlugin);
+
+        if (this.settings.enableFurigana) {
+            this.extension.push(this.furiganaViewPlugin);
+        }
+
+        if (applyWorkspaceUpdate) {
+            this.app.workspace.updateOptions();
+        }
+    }
+
+    private refreshOpenMarkdownPreviews() {
+        for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+            const view = leaf.view;
+            if (!(view instanceof MarkdownView)) continue;
+            if (view.getMode() !== 'preview') continue;
+            view.previewMode.rerender(true);
+        }
     }
 
     private async handleInlineCode(element: HTMLElement, context: any) {
@@ -214,6 +444,66 @@ export default class MarkdownMahgenPlugin extends Plugin {
                 await this.renderMahgenContent(source, codeBlock as HTMLElement, context);
             }
         }
+    }
+
+    private handleFuriganaPostProcessor(element: HTMLElement) {
+        if (!this.settings.enableFurigana) return;
+        if (!element.textContent || !element.textContent.includes('{')) return;
+
+        try {
+            const textNodes = new Set<Text>();
+            this.collectFuriganaTextNodes(element, textNodes);
+
+            for (const textNode of textNodes) {
+                this.replaceFuriganaTextNode(textNode);
+            }
+        } catch (error) {
+            console.error('Furigana post processor error:', error);
+        }
+    }
+
+    private collectFuriganaTextNodes(root: Element, result: Set<Text>) {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode: (node) => {
+                const textNode = node as Text;
+                const parent = textNode.parentElement;
+                if (!parent) return NodeFilter.FILTER_REJECT;
+                if (!textNode.textContent || !textNode.textContent.includes('{')) return NodeFilter.FILTER_SKIP;
+                if (parent.closest(FURIGANA_EXCLUDE_SELECTOR)) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+
+        while (walker.nextNode()) {
+            result.add(walker.currentNode as Text);
+        }
+    }
+
+    private replaceFuriganaTextNode(textNode: Text) {
+        const text = textNode.textContent;
+        if (!text) return;
+        if (!text.includes('{')) return;
+
+        const tokens = parseFuriganaTokens(text);
+        if (tokens.length === 0) return;
+
+        const fragment = document.createDocumentFragment();
+        let cursor = 0;
+
+        for (const token of tokens) {
+            if (cursor < token.start) {
+                fragment.append(text.slice(cursor, token.start));
+            }
+
+            fragment.append(createFuriganaRuby(token.baseUnits, token.readings));
+            cursor = token.end;
+        }
+
+        if (cursor < text.length) {
+            fragment.append(text.slice(cursor));
+        }
+
+        textNode.replaceWith(fragment);
     }
 
     private async renderMahgenContent(source: string, element: HTMLElement, context: any, isRiver = false) {
@@ -356,5 +646,29 @@ export default class MarkdownMahgenPlugin extends Plugin {
         }
 
         el.replaceWith(container);
+    }
+}
+
+class MarkdownMahgenSettingTab extends PluginSettingTab {
+    private plugin: MarkdownMahgenPlugin;
+
+    constructor(app: App, plugin: MarkdownMahgenPlugin) {
+        super(app, plugin);
+        this.plugin = plugin;
+    }
+
+    display(): void {
+        const { containerEl } = this;
+        containerEl.empty();
+
+        new Setting(containerEl)
+            .setName('Enable Furigana')
+            .setDesc('Parse {漢字|かな} syntax in reading view and Live Preview. Disabled by default to avoid conflicts.')
+            .addToggle((toggle) => {
+                toggle.setValue(this.plugin.isFuriganaEnabled());
+                toggle.onChange(async (value) => {
+                    await this.plugin.updateFuriganaEnabled(value);
+                });
+            });
     }
 }

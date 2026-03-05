@@ -80,6 +80,23 @@ In `style.css`, you can freely change the size of hands:
 }
 ```
 
+## Furigana (Optional)
+
+This plugin can also parse furigana syntax:
+
+```markdown
+{漢字|かん|じ}
+{日本語|にほんご}
+```
+
+Rendered output uses `<ruby><rt>...</rt></ruby>` in reading view and Live Preview.
+This furigana feature is independently implemented in this plugin, inspired by `obsidian-markdown-furigana`.
+
+To avoid conflicts with dedicated furigana plugins, this feature is **disabled by default**.
+Enable it in plugin settings: **Enable Furigana**.
+
+See `THIRD_PARTY_NOTICES.md` for attribution and reuse notes.
+
 # Known issues
 
 <!-- 1. For some themes (like Blue Topaz) the inline tiles may render like in between. -->

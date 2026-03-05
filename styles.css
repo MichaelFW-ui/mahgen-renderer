@@ -121,3 +121,12 @@ If your plugin does not need CSS, delete this file.
     max-width: 100%;
     height: 2.6em;
 }
+
+.mahgen-furigana-ruby {
+    ruby-position: over;
+}
+
+.mahgen-furigana-ruby rt {
+    font-size: 0.58em;
+    line-height: 1;
+}
